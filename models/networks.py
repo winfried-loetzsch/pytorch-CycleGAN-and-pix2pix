@@ -4,6 +4,8 @@ from torch.nn import init
 import functools
 from torch.optim import lr_scheduler
 
+from helpers.apply_visual_effect import ApplyVisualEffect
+from helpers.apply_visual_effect import xdog_params
 
 ###############################################################################
 # Helper Functions
@@ -115,8 +117,28 @@ def init_net(net, init_type='normal', init_gain=0.02, gpu_ids=[]):
     init_weights(net, init_type, init_gain=init_gain)
     return net
 
+class PPNGenerator(nn.Module):
+    # OUR xdog module
+    def __init__(self, generator, conv_part):
+        super().__init__()
+        self.effect = ApplyVisualEffect()
+        self.generator = generator
+        self.conv_part = conv_part
 
-def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[]):
+    def forward(self, x):
+        vps = self.generator(x)  # conveniently for us they are also using tanh internally
+
+        x = (x * 0.5) + 0.5   # our effects cannot deal with neg. values
+        x = self.effect(x, 0.5 * vps)  # multiply vps with 0.5 for [-0.5, 0.5] range
+        x = (x - 0.5) / 0.5
+
+        return self.conv_part(x)
+
+    @staticmethod
+    def get_nc():
+        return len(xdog_params)
+
+def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, init_type='normal', init_gain=0.02, gpu_ids=[], opt=None):
     """Create a generator
 
     Parameters:
@@ -143,20 +165,32 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
 
     The generator has been initialized by <init_net>. It uses RELU for non-linearity.
     """
-    net = None
-    norm_layer = get_norm_layer(norm_type=norm)
 
-    if netG == 'resnet_9blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=9)
-    elif netG == 'resnet_6blocks':
-        net = ResnetGenerator(input_nc, output_nc, ngf, norm_layer=norm_layer, use_dropout=use_dropout, n_blocks=6)
-    elif netG == 'unet_128':
-        net = UnetGenerator(input_nc, output_nc, 7, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
-    elif netG == 'unet_256':
-        net = UnetGenerator(input_nc, output_nc, 8, ngf, norm_layer=norm_layer, use_dropout=use_dropout)
+    def do_get_net(oc, nl):
+        if netG == 'resnet_9blocks':
+            net = ResnetGenerator(input_nc, oc, ngf, norm_layer=nl, use_dropout=use_dropout, n_blocks=9)
+        elif netG == 'resnet_6blocks':
+            net = ResnetGenerator(input_nc, oc, ngf, norm_layer=nl, use_dropout=use_dropout, n_blocks=6)
+        elif netG == 'unet_128':
+            net = UnetGenerator(input_nc, oc, 7, ngf, norm_layer=nl, use_dropout=use_dropout)
+        elif netG == 'unet_256':
+            net = UnetGenerator(input_nc, oc, 8, ngf, norm_layer=nl, use_dropout=use_dropout)
+        elif netG == 'unet_512':
+            net = UnetGenerator(input_nc, oc, 9, ngf, norm_layer=nl, use_dropout=use_dropout)
+        else:
+            raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
+        return net
+
+    norm_layer = get_norm_layer(norm_type=norm)
+    norm_layer_ppn = get_norm_layer(norm_type=opt.ppnG_norm)
+
+    if opt.ppnG == "xdog":
+        print("using XDOG generator!")
+        result = PPNGenerator(do_get_net(PPNGenerator.get_nc(), norm_layer_ppn), do_get_net(output_nc, norm_layer))
     else:
-        raise NotImplementedError('Generator model name [%s] is not recognized' % netG)
-    return init_net(net, init_type, init_gain, gpu_ids)
+        print("NOT using XDOG generator")
+        result = do_get_net(output_nc, norm_layer)
+    return init_net(result, init_type, init_gain, gpu_ids)
 
 
 def define_D(input_nc, ndf, netD, n_layers_D=3, norm='batch', init_type='normal', init_gain=0.02, gpu_ids=[]):
