@@ -4,6 +4,7 @@ from shutil import copy
 import numpy as np
 from PIL import Image
 
+
 def split_train_data():
     path = "/home/winfried/data/apdrawing_dataset/APDrawingDB/data/test"
     sp_a = "/home/winfried/data/apdrawing_dataset/pix2pix/val_a"
@@ -23,9 +24,11 @@ def split_train_data():
     print("done")
 
 
-def split_result(name):
-    path = f"/media/winfried/Daten/data_external/pix2pix_SEPT/results/{name}/test_latest/images"
-    ppp = Path(path) / "../../result"
+def split_result(name, it=0):
+    it = "" if it == 0 else f"_iter{it}"
+
+    path = f"/media/winfried/Daten/data_external/pix2pix_SEPT/results/{name}/test_latest{it}/images"
+    ppp = Path(path) / f"../../result{it}"
     ppp.mkdir(exist_ok=True, parents=True)
 
     for i, p in enumerate(Path(path).glob("*.png")):
@@ -34,6 +37,18 @@ def split_result(name):
 
 
 if __name__ == '__main__':
-    # split_result("apdrawing")
-    # split_result("apdrawing_xdog")
-    split_result("apdrawing_xdog1")
+    split_result("apdrawing_C")
+    split_result("apdrawing_C2")
+    split_result("apdrawing_A")
+    split_result("apdrawing_A2")
+    split_result("apdrawing_B")
+    split_result("apdrawing_B2")
+    split_result("apdrawing_D")
+    split_result("apdrawing_D2")
+    split_result("apdrawing_D3")
+    split_result("apdrawing_E")
+    split_result("apdrawing_E2")
+    split_result("apdrawing_F2")
+    split_result("apdrawing_F")
+
+    print("done")

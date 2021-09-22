@@ -10,6 +10,7 @@ from helpers.apply_visual_effect import xdog_params
 ###############################################################################
 # Helper Functions
 ###############################################################################
+from models.ppn_generator import OurPPNGenerator
 
 
 class Identity(nn.Module):
@@ -182,14 +183,24 @@ def define_G(input_nc, output_nc, ngf, netG, norm='batch', use_dropout=False, in
         return net
 
     norm_layer = get_norm_layer(norm_type=norm)
-    norm_layer_ppn = get_norm_layer(norm_type=opt.ppnG_norm)
 
-    if opt.ppnG == "xdog":
-        print("using XDOG generator!")
-        result = PPNGenerator(do_get_net(PPNGenerator.get_nc(), norm_layer_ppn), do_get_net(output_nc, norm_layer))
+    # if opt.ppnG == "xdog":
+    #     # meaning xdog + standard conv generator
+    #     print("using XDOG generator!")
+    #     result = PPNGenerator(do_get_net(PPNGenerator.get_nc(), norm_layer_ppn), do_get_net(output_nc, norm_layer))
+    if opt.ppnG == "our_xdog":
+        print("using our custom XDOG generator!")
+        result = OurPPNGenerator("classic", do_get_net(output_nc, norm_layer), "xdog")  # note: no dropout in conv! no bn
+    elif opt.ppnG == "our_xdog_random":
+        print("using our custom XDOG generator w. random ppn!")
+        result = OurPPNGenerator("random", do_get_net(output_nc, norm_layer), "xdog")  # note: no dropout in conv! no bn
+    elif opt.ppnG == "our_xdog_none":
+        print("using our custom XDOG generator w. preset!")
+        result = OurPPNGenerator("none", do_get_net(output_nc, norm_layer), "xdog")  # note: no dropout in conv! no bn
     else:
         print("NOT using XDOG generator")
         result = do_get_net(output_nc, norm_layer)
+
     return init_net(result, init_type, init_gain, gpu_ids)
 
 
